@@ -74,6 +74,24 @@ jobs:
     - name: cargo hack check
       run: cargo hack check --each-feature --no-dev-deps --all
 
+  metrique-explicit-impls:
+    # `metrique` defaults `Value::{SHAPE, UNIT}`; this cfg turns those defaults
+    # off so that our metrique bridge is checked for setting them explicitly.
+    # See https://github.com/awslabs/metrique/blob/main/.github/workflows/ci.yml
+    runs-on: ubuntu-latest
+    env:
+      RUSTFLAGS: --cfg metrique_require_explicit_impls --cfg tokio_unstable -Dwarnings
+    steps:
+    - uses: actions/checkout@master
+    - uses: actions-rs/toolchain@v1
+      with:
+        toolchain: ${{ env.rust_stable }}
+        override: true
+        profile: minimal
+    - uses: Swatinem/rust-cache@v1
+    - name: cargo check
+      run: cargo check --all --all-targets --all-features
+
   test-versions:
     name: test-version (${{ matrix.name }})
     needs: check

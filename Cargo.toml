@@ -15,7 +15,10 @@ categories = ["asynchronous", "network-programming"]
 keywords = ["async", "futures", "metrics", "debugging"]
 
 [lints.rust]
-unexpected_cfgs = { level = "warn", check-cfg = ['cfg(tokio_unstable)'] }
+unexpected_cfgs = { level = "warn", check-cfg = [
+    'cfg(tokio_unstable)',
+    'cfg(metrique_require_explicit_impls)',
+] }
 
 [features]
 default = ["rt"]
@@ -29,10 +32,12 @@ futures-util = "0.3.19"
 pin-project-lite = "0.2.7"
 tokio = { version = "1.45.1", features = ["rt", "time", "net"], optional = true }
 metrics = { version = "0.24", optional = true }
-metrique = { version = "0.1.23", default-features = false, optional = true }
+# 0.1.30 pulls in the metrique-writer-core that has `Value::{SHAPE, UNIT}`,
+# which the `PollTimeHistogram` value impl sets explicitly.
+metrique = { version = "0.1.30", default-features = false, optional = true }
 
 [dev-dependencies]
-metrique = { version = "0.1.23", features = ["test-util"] }
+metrique = { version = "0.1.30", features = ["test-util"] }
 axum = "0.8"
 criterion = "0.7"
 futures = "0.3.21"

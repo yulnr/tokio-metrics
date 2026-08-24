@@ -81,11 +81,18 @@ impl HistogramBucket {
 
 #[cfg(feature = "metrique-integration")]
 impl metrique::writer::Value for PollTimeHistogram {
-    fn write(&self, writer: impl metrique::writer::ValueWriter) {
-        use metrique::writer::unit::NegativeScale;
-        use metrique::writer::{MetricFlags, Observation, Unit};
+    // Emitted as a distribution of bucket midpoints in microseconds, so the
+    // closed shape is a float rather than the `Opaque` default.
+    const SHAPE: metrique::writer::core::FieldShape<'static> =
+        metrique::writer::core::FieldShape::Known(metrique::writer::core::KnownShape::F64);
+    const UNIT: metrique::writer::Unit = metrique::writer::Unit::Second(
+        metrique::writer::unit::NegativeScale::Micro,
+    );
 
-        // Use the bucket midpoint as the representative value. 
+    fn write(&self, writer: impl metrique::writer::ValueWriter) {
+        use metrique::writer::{MetricFlags, Observation};
+
+        // Use the bucket midpoint as the representative value.
         // Tokio's last bucket has range_end of Duration::from_nanos(u64::MAX),
         // so use range_start for it since the midpoint wouldn't be representative.
         const LAST_BUCKET_END: Duration = Duration::from_nanos(u64::MAX);
@@ -105,7 +112,7 @@ impl metrique::writer::Value for PollTimeHistogram {
                     occurrences: b.count,
                 }
             }),
-            Unit::Second(NegativeScale::Micro),
+            Self::UNIT,
             [],
             MetricFlags::empty(),
         );
@@ -149,6 +156,33 @@ mod tests {
         assert_eq!(buckets[2].count(), 3);
         assert_eq!(buckets[2].range_start(), Duration::from_micros(200));
         assert_eq!(buckets[2].range_end(), Duration::from_micros(500));
+    }
+
+    #[test]
+    fn poll_time_histogram_declares_shape_and_unit() {
+        use metrique::writer::Value;
+        use metrique::writer::core::{FieldShape, KnownShape};
+
+        assert_eq!(
+            <PollTimeHistogram as Value>::SHAPE,
+            FieldShape::Known(KnownShape::F64)
+        );
+
+        let metrics = RuntimeMetrics {
+            poll_time_histogram: PollTimeHistogram::new(vec![HistogramBucket::new(
+                Duration::from_micros(0),
+                Duration::from_micros(100),
+                1,
+            )]),
+            ..Default::default()
+        };
+
+        // The unit reaching the writer must be the one the impl declares.
+        let entry = test_metric(metrics);
+        assert_eq!(
+            entry.metrics["poll_time_histogram"].unit,
+            <PollTimeHistogram as Value>::UNIT
+        );
     }
 
     #[test]
